@@ -134,8 +134,13 @@ def import_data(inputfile ):
 
     df = pd.read_csv(inputfile, sep='\t')
 
+    # set % Reads aligned as float
+    df['% Reads'] = df['% Reads'].apply(lambda x: float(x) if not pd.isna(x) else 0)
+    # set # Reads Aligned as int
+    df['# Reads Aligned'] = df['# Reads Aligned'].apply(lambda x: int(x) if not pd.isna(x) else 0)
+
     # sort the dataframe by the Sample THEN the # Reads
-    df = df.sort_values(by=[ "Microbial Category", "Specimen ID", "# Reads Aligned"], ascending=[False, True, False])
+    df = df.sort_values(by=["Specimen ID", "Microbial Category",  "# Reads Aligned"], ascending=[True, False, True])
     # trim all of NAme column  of whitespace either side
     df["Detected Organism"] = df["Detected Organism"].str.strip()
     dictnames = {
@@ -346,12 +351,12 @@ def create_report(
     date = datetime.now().strftime("%Y-%m-%d %H:%M")  # Current date
     # sort df_identified by Confidence Metric (0-1)
     # filter out so only Class is PAthogen
-    df_identified = df_identified.sort_values(by=['Specimen ID', 'Confidence Metric (0-1)'], ascending=False)
-    df_opportunistic = df_opportunistic.sort_values(by=['Specimen ID', 'Confidence Metric (0-1)'], ascending=False)
+    # df_identified = df_identified.sort_values(by=['Specimen ID', '# Reads Aligned'], ascending=[False, True])
+    # df_opportunistic = df_opportunistic.sort_values(by=['Specimen ID', '# Reads Aligned'], ascending=[False, False])
     df_identified_paths = df_identified
     df_identified_others = df_commensals
     # df_identified_others = df_identified[df_identified['Class'] != 'Pathogen']
-    df_unidentified = df_unidentified.sort_values(by=['Specimen ID', '# Reads Aligned'], ascending=False)
+    # df_unidentified = df_unidentified.sort_values(by=['Specimen ID', '# Reads Aligned'], ascending=[False, False])
     elements = []
     ##########################################################################################
     ##########################################################################################
@@ -466,6 +471,10 @@ def create_report(
 
     subtext_para = Paragraph("The following information highlights the description for the color combinations for each organism class in the annotated table(s)", subtext_style)
     elements.append(subtext_para)
+    elements.append(Spacer(1, 12))
+    subtext_para = Paragraph("Please see the relevant Discovery Analysis txt file for low confidence annotations that were not present in the pdf", subtext_style)
+    elements.append(subtext_para)
+    elements.append(Spacer(1, 12))
 
     bullet_list_items = [
         "Green/White: Direct match for the taxid/organism name with your sample type from the database.",
@@ -586,6 +595,7 @@ def main():
     args = parse_args()
     df_full = import_data(args.input)
 
+
     # change column "id" in avbundance_data to "tax_id" if args.type is "Detected Organism"
     df_full = df_full.rename(columns={args.id_col: args.type})
     df_full = df_full.rename(columns={args.sitecol: 'body_site'})
@@ -594,6 +604,8 @@ def main():
     # df_identified = df_identified[[args.type, 'body_site', 'abundance']]
     # convert all body_site with map
     df_full['body_site'] = df_full['body_site'].map(lambda x: body_site_map(x) )
+    # Sort on # Reads aligned
+    df_full = df_full.sort_values(by=["# Reads Aligned"], ascending=False)
     # make new column that is # of reads aligned to sample (% reads in sample) string format
     df_full['Quant'] = df_full.apply(lambda x: f"{x['# Reads Aligned']} ({x['abundance']:.2f}%)", axis=1)
     # add body sit to Sample col with ()

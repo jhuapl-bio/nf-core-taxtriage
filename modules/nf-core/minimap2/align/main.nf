@@ -1,6 +1,6 @@
 process MINIMAP2_ALIGN {
     tag "$meta.id"
-    label 'process_high'
+    label 'process_medium'
 
     conda (params.enable_conda ? 'bioconda::minimap2=2.21 bioconda::samtools=1.12' : null)
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
@@ -36,8 +36,8 @@ process MINIMAP2_ALIGN {
     }
     def input_reads = reads.findAll { it != null }.join(' ')
     def minmapq = minmapq ? " -q ${minmapq} " :  ""
-    def I_value = "${(task.memory.toMega() * 0.8).longValue()}M" // 80% of allocated memory, append GB to end as a string
-    def S_value = "${(task.memory.toMega() * 0.15).longValue()}M" // 20% of allocated memory, append GB to end as a string
+    def I_value = "${(task.memory.toMega() * 0.75).longValue()}M" // 80% of allocated memory, append GB to end as a string
+    def S_value = "${( ( task.memory.toMega() / task.cpus ) * 0.1).longValue()}M" // 20% of allocated memory, append GB to end as a string
     def bam_output = bam_format ? "-a | samtools sort -@ ${task.cpus} -m $S_value | samtools view $minmapq -@ ${task.cpus} -b -h -o ${prefix}.bam" : "-o ${prefix}.paf"
     def cigar_paf = cigar_paf_format && !bam_format ? "-c" : ''
     def set_cigar_bam = cigar_bam && bam_format ? "-L" : ''

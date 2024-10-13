@@ -230,22 +230,32 @@ workflow TAXTRIAGE {
             'size': '7.5G'
         ],
         'standard8': [
-            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08gb_20240112.tar.gz',
+            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_standard_08gb_20240605.tar.gz',
             'checksum': 'a184ae5c1e382abfff34574e135ceaaace4ac27605b205f4fb83dca11cfa42ac',
             'size': '7.5G'
         ],
+        'standard': [
+            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_standard_20240605.tar.gz',
+            'checksum': 'a184ae5c1e382abfff34574e135ceaaace4ac27605b205f4fb83dca11cfa42ac',
+            'size': '78G'
+        ],
         'viral': [
-            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20240112.tar.gz',
+            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_viral_20240605.tar.gz',
             'checksum': 'adf5deba8a62f995609592aa86e2f7aac7e49162e995e132a765b96edb456f99',
             'size': '553M'
         ],
         'pluspf': [
-            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspf_20240112.tar.gz',
+            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspf_20240605.tar.gz',
             'checksum': 'adf5deba8a62f995609592aa86e2f7aac7e49162e995e132a765b96edb456f99',
             'size': '77G'
         ],
+        'pluspfp16': [
+            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspfp_16gb_20240605.tar.gz',
+            'checksum': 'adf5deba8a62f995609592aa86e2f7aac7e49162e995e132a765b96edb456f99',
+            'size': '16G'
+        ],
         'pluspf8': [
-            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspf_08gb_20240112.tar.gz',
+            'url': 'https://genome-idx.s3.amazonaws.com/kraken/k2_pluspf_08gb_20240605.tar.gz',
             'checksum': 'adf5deba8a62f995609592aa86e2f7aac7e49162e995e132a765b96edb456f99',
             'size': '7.5G'
         ],
@@ -474,7 +484,7 @@ workflow TAXTRIAGE {
     // if ch_refernece_fasta is empty
 
     if (!params.skip_realignment) {
-        ch_prepfiles = ch_filtered_reads.join(ch_preppedfiles.map{ meta, fastas, map, gcfids -> {
+        ch_prepfiles = ch_reads.join(ch_preppedfiles.map{ meta, fastas, map, gcfids -> {
                 return [meta, fastas, map]
             }
         })
