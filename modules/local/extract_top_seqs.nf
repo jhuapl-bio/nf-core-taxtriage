@@ -24,19 +24,31 @@ process EXTRACT_TOP_SEQS {
         'biocontainers/biopython:1.75' }"
 
     input:
-    tuple val(meta),  path(taxids)
+    tuple val(meta),  path(taxids), path(k2_report), path(reads)
 
     output:
-    path("*fastq.gz"), optional: true, emit: fastq
+    tuple val(meta), path("*removed.fastq.gz"), optional: true, emit: reads
     path "versions.yml"           , emit: versions
 
     when:
     task.ext.when == null || task.ext.when
 
+
     script: // This script is bundled with the pipeline, in nf-core/taxtriage/bin/
 
-    """
+    def args = task.ext.args ?: ""
+    def prefix = task.ext.prefix ?: "${meta.id}"
+    def outputprefix = "${prefix}.extracted"
+    def compress_reads_command = "gzip -f  *.removed.fastq"
 
+    """
+    extract_seqs.py \\
+        -i $taxids \\
+        -k $k2_report $args \\
+        -r $reads \\
+        -p $prefix
+
+    $compress_reads_command
 
 
     cat <<-END_VERSIONS > versions.yml

@@ -124,10 +124,21 @@ workflow CLASSIFIER {
             )
 
             if (ch_save_fastq_classified){
-                ch_reads = KRAKEN2_KRAKEN2.out.classified_reads_fastq.map { m, r-> [m, r.findAll { it =~ /.*\.classified.*(fq|fastq)(\.gz)?/  }] }
-                // EXTRACT_TOP_SEQS(
-                //     TOP_HITS.out.taxids
-                // )
+                // ch_reads = KRAKEN2_KRAKEN2.out.classified_reads_fastq.map { m, r-> [m, r.findAll { it =~ /.*\.classified.*(fq|fastq)(\.gz)?/  }] }
+                EXTRACT_TOP_SEQS(
+                    TOP_HITS.out.taxids.join(
+                        KRAKEN2_KRAKEN2.out.classified_reads_assignment
+                    ).join(
+                        ch_reads.map{ meta, reads -> [meta, reads] }
+                    )
+                )
+                ch_reads.join(EXTRACT_TOP_SEQS.out.reads, by: 0, remainder: true)
+                    .map { meta, original_reads, extracted_reads ->
+                        // If extracted_reads is missing, it will be set to null
+                        def final_reads = extracted_reads ?: original_reads
+                        return [meta, final_reads]
+                    }
+                    .set { ch_reads }
             }
 
             if (params.fuzzy){

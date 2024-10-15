@@ -21,6 +21,8 @@
 
 import argparse
 import sys
+import os
+
 import gzip
 
 def parse_args(argv=None):
@@ -43,29 +45,21 @@ def parse_args(argv=None):
         help="Kraken2 output per-read file",
     )
     parser.add_argument(
-        "-1",
-        "--in1",
-        metavar="READ1",
-        help="First pair of paired-end fastq.gz file or single-end fastq.gz file",
+        "-r",
+        "--inreads",
+        metavar="READS",
+        nargs="+",
+        default=[],
+        help="1 or more fastq files to extract reads from",
     )
+
     parser.add_argument(
-        "-2",
-        "--in2",
-        metavar="READ2",
-        help="Second pair of paired-end fastq.gz file (optional)",
-    )
-    parser.add_argument(
-        "-o1",
-        "--out1",
-        required=True,
-        metavar="OUTPUT1",
-        help="Output file for single-end or first pair of paired-end",
-    )
-    parser.add_argument(
-        "-o2",
-        "--out2",
-        metavar="OUTPUT2",
-        help="Output file for second pair of paired-end (optional)",
+        "-p",
+        "--prefix",
+        type=str,
+        required=False,
+        metavar="OUTPUTSPREFIX",
+        help="Output file prefix for reads. If disabled, then output it as all prefixes based on R1 or R2 or not",
     )
     return parser.parse_args(argv)
 def open_file(file):
@@ -86,39 +80,89 @@ def parse_kraken2(k2_file, taxid_list):
             if any(taxid in taxid_info for taxid in taxid_list):
                 read_ids.add(read_id)
     return read_ids
+import re
+# Remove using regex everything after the last occurrence of the extension for all removeexts from fastq_file
+def remove_extension(fastq_file, removeexts):
+    for ext in removeexts:
+        fastq_file = re.sub(f"{ext}$", "", fastq_file)  # Use regex to match the extension at the end of the string
+    return fastq_file
 
-def extract_reads(fastq_file, output_file, read_ids):
+def extract_reads(fastq_file, outprefix, read_ids, all_files):
     """Extract matching reads from fastq.gz file and write to new file."""
-    with gzip.open(output_file, "wt") as outgz:
-        with gzip.open(fastq_file, "rt") as infq:
-            write_read = False
-            for line in infq:
-                if line.startswith('@'):
-                    # Extract the read ID and remove /1 or /2 suffix for paired-end reads
-                    raw_read_id = line.split()[0][1:]  # Remove '@'
-                    read_id = raw_read_id.split('/')[0]  # Remove /1 or /2 suffix
-                    write_read = read_id in read_ids
-                if write_read:
-                    outgz.write(line)
 
-def extract_paired_reads(fastq1, fastq2, out1, out2, read_ids):
-    """Extract paired reads from fastq.gz files and write to new files."""
-    with gzip.open(out1, "wt") as outgz1, gzip.open(out2, "wt") as outgz2:
-        with gzip.open(fastq1, "rt") as infq1, gzip.open(fastq2, "rt") as infq2:
-            write_read1 = False
-            write_read2 = False
-            for line1, line2 in zip(infq1, infq2):
-                if line1.startswith('@') and line2.startswith('@'):
-                    # Extract the read IDs and remove /1 or /2 suffix for paired-end reads
-                    raw_read_id1 = line1.split()[0][1:]  # Remove '@'
-                    raw_read_id2 = line2.split()[0][1:]  # Remove '@'
-                    read_id1 = raw_read_id1.split('/')[0]  # Remove /1 or /2 suffix
-                    read_id2 = raw_read_id2.split('/')[0]  # Remove /1 or /2 suffix
-                    write_read1 = write_read2 = read_id1 in read_ids and read_id2 in read_ids
-                if write_read1:
-                    outgz1.write(line1)
-                if write_read2:
-                    outgz2.write(line2)
+    removeexts = [
+        r"\.fastq.*",
+        r"\.fq.*"
+    ]
+
+    # Remove extensions first
+    base_file = remove_extension(fastq_file, removeexts)
+
+    # If we only have 1 input file (single-end reads)
+    if len(all_files) == 1:
+        output_file = f"{outprefix}.removed.fastq.gz"
+        print(f"Output file: {output_file}")
+
+    # If we have 2 input files (paired-end reads)
+    elif len(all_files) == 2:
+        if fastq_file == all_files[0]:
+            # Assume it's R1
+            output_file = f"{outprefix}.R1.removed.fastq.gz"
+        elif fastq_file == all_files[1]:
+            # Assume it's R2
+            output_file = f"{outprefix}.R2.removed.fastq.gz"
+        print(f"Output file: {output_file}")
+
+def match_files(inhandle, outhandle, read_ids):
+    minreadlength = min([len(x) for x in read_ids])
+    while True:
+        header = inhandle.readline().strip()
+        if not header:
+            break  # EOF
+        sequence = inhandle.readline().strip()
+        plus = inhandle.readline().strip()
+        quality = inhandle.readline().strip()
+
+        # Extract the read ID and remove /1 or /2 suffix for paired-end reads
+        raw_read_id = header[1:].split('/')[0]  # Remove '@' and split by '/' to remove /1 or /2
+        # Start with the full read ID, progressively remove characters until minreadlength
+        match_found = False
+        for length in range(len(raw_read_id), minreadlength - 1, -1):  # Start full, reduce to minreadlength
+            trimmed_read_id = raw_read_id[:length]
+            if trimmed_read_id in read_ids:
+                # print(f"Matched read ID: {trimmed_read_id}")
+                # Write the full read to the output file (header, sequence, +, quality)
+                outhandle.write(f"{header}\n")
+                outhandle.write(f"{sequence}\n")
+                outhandle.write(f"{plus}\n")
+                outhandle.write(f"{quality}\n")
+                match_found = True
+                break  # Exit the loop once a match is found
+        # if not match_found:
+        #     print(f"No match for read ID: {raw_read_id}, skipped.")
+
+
+def match_reads(fastq_files, outprefix, read_ids):
+    """Extract paired reads from fastq.gz files and write to new files dynamically."""
+    # get minread length of read_ids
+    # Handle paired-end reads
+    if len(fastq_files) == 2:
+        fastq1, fastq2 = fastq_files[0], fastq_files[1]
+
+        # Prepare output files for R1 and R2
+        out1 = f"{outprefix}.R1.removed.fastq"
+        out2 = f"{outprefix}.R2.removed.fastq"
+        with gzip.open(fastq1, "rt") as infq1, open(out1, "wt") as outgz1:
+            match_files(infq1, outgz1, read_ids)
+        with gzip.open(fastq2, "rt") as infq2, open(out2, "wt") as outgz2:
+            match_files(infq2, outgz2, read_ids)
+    else:
+        fastq1 = fastq_files[0]
+        out1 = f"{outprefix}.removed.fastq"
+        # Open the input fastq.gz and output fastq file
+        with gzip.open(fastq1, "rt") as infq1, open(out1, "wt") as outgz1:
+            match_files(infq1, outgz1, read_ids)
+
 
 def main(argv=None):
     args = parse_args(argv)
@@ -132,13 +176,8 @@ def main(argv=None):
     # Parse Kraken2 classified reads file and get matching read IDs
     read_ids = parse_kraken2(args.k2, taxid_list)
 
-    # If paired-end files provided, extract reads for both R1 and R2
-    if args.in2 and args.out2:
-        print("Extracting paired reads...")
-        extract_paired_reads(args.in1, args.in2, args.out1, args.out2, read_ids)
-    else:
-        # Otherwise, handle single-end or R1-only reads
-        extract_reads(args.in1, args.out1, read_ids)
+    match_reads(args.inreads, args.prefix, read_ids)
+
 
 
 if __name__ == "__main__":
