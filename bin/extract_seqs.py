@@ -23,6 +23,7 @@ import argparse
 import sys
 import os
 
+from Bio import SeqIO
 import gzip
 
 def parse_args(argv=None):
@@ -113,33 +114,17 @@ def extract_reads(fastq_file, outprefix, read_ids, all_files):
             output_file = f"{outprefix}.R2.removed.fastq.gz"
         print(f"Output file: {output_file}")
 
-def match_files(inhandle, outhandle, read_ids):
-    minreadlength = min([len(x) for x in read_ids])
-    while True:
-        header = inhandle.readline().strip()
-        if not header:
-            break  # EOF
-        sequence = inhandle.readline().strip()
-        plus = inhandle.readline().strip()
-        quality = inhandle.readline().strip()
+def match_files(in_handle, out_handle, read_ids):
+    # iterate through the input FASTQ file with seqio.parse line by line
+    # and filter out reads that are in the read_ids set
 
-        # Extract the read ID and remove /1 or /2 suffix for paired-end reads
-        raw_read_id = header[1:].split('/')[0]  # Remove '@' and split by '/' to remove /1 or /2
-        # Start with the full read ID, progressively remove characters until minreadlength
-        match_found = False
-        for length in range(len(raw_read_id), minreadlength - 1, -1):  # Start full, reduce to minreadlength
-            trimmed_read_id = raw_read_id[:length]
-            if trimmed_read_id in read_ids:
-                # print(f"Matched read ID: {trimmed_read_id}")
-                # Write the full read to the output file (header, sequence, +, quality)
-                outhandle.write(f"{header}\n")
-                outhandle.write(f"{sequence}\n")
-                outhandle.write(f"{plus}\n")
-                outhandle.write(f"{quality}\n")
-                match_found = True
-                break  # Exit the loop once a match is found
-        # if not match_found:
-        #     print(f"No match for read ID: {raw_read_id}, skipped.")
+    # Write matching reads to output file as they are processed
+    for record in SeqIO.parse(in_handle, "fastq"):
+        # Extract the core part of the read ID before any space or metadata
+        core_read_id = record.id.split()[0]
+        core_read_id = core_read_id.split("/")[0]  # Remove any metadata after colon
+        if core_read_id in read_ids:
+            SeqIO.write(record, out_handle, "fastq")  # Write only matching reads
 
 
 def match_reads(fastq_files, outprefix, read_ids):
@@ -149,7 +134,7 @@ def match_reads(fastq_files, outprefix, read_ids):
     if len(fastq_files) == 2:
         fastq1, fastq2 = fastq_files[0], fastq_files[1]
 
-        # Prepare output files for R1 and R2
+        # #### Prepare output files for R1 and R2
         out1 = f"{outprefix}.R1.removed.fastq"
         out2 = f"{outprefix}.R2.removed.fastq"
         with gzip.open(fastq1, "rt") as infq1, open(out1, "wt") as outgz1:
@@ -159,10 +144,9 @@ def match_reads(fastq_files, outprefix, read_ids):
     else:
         fastq1 = fastq_files[0]
         out1 = f"{outprefix}.removed.fastq"
-        # Open the input fastq.gz and output fastq file
-        with gzip.open(fastq1, "rt") as infq1, open(out1, "wt") as outgz1:
-            match_files(infq1, outgz1, read_ids)
-
+        with gzip.open(fastq1, "rt") as in_handle, open(out1, "wt") as out_handle:
+            # Parse the input FASTQ and filter reads
+            match_files(in_handle, out_handle, read_ids)
 
 def main(argv=None):
     args = parse_args(argv)
