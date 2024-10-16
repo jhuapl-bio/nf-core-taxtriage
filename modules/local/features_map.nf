@@ -56,10 +56,6 @@ process FEATURES_MAP {
         -o $outputoi \\
         -g $outputo
 
-
-
-
-
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":
         python3: \$(python3 --version | sed 's/Python //g')
