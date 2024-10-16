@@ -87,32 +87,32 @@ def remove_extension(fastq_file, removeexts):
     for ext in removeexts:
         fastq_file = re.sub(f"{ext}$", "", fastq_file)  # Use regex to match the extension at the end of the string
     return fastq_file
+def match_files_base(inhandle, outhandle, read_ids):
+    minreadlength = min(len(read_id) for read_id in read_ids)
+    while True:
+        header = inhandle.readline().strip()
+        if not header:
+            break  # EOF
+        sequence = inhandle.readline().strip()
+        plus = inhandle.readline().strip()
+        quality = inhandle.readline().strip()
 
-def extract_reads(fastq_file, outprefix, read_ids, all_files):
-    """Extract matching reads from fastq.gz file and write to new file."""
-
-    removeexts = [
-        r"\.fastq.*",
-        r"\.fq.*"
-    ]
-
-    # Remove extensions first
-    base_file = remove_extension(fastq_file, removeexts)
-
-    # If we only have 1 input file (single-end reads)
-    if len(all_files) == 1:
-        output_file = f"{outprefix}.removed.fastq.gz"
-        print(f"Output file: {output_file}")
-
-    # If we have 2 input files (paired-end reads)
-    elif len(all_files) == 2:
-        if fastq_file == all_files[0]:
-            # Assume it's R1
-            output_file = f"{outprefix}.R1.removed.fastq.gz"
-        elif fastq_file == all_files[1]:
-            # Assume it's R2
-            output_file = f"{outprefix}.R2.removed.fastq.gz"
-        print(f"Output file: {output_file}")
+        # Extract the read ID (remove '@')
+        raw_read_id = header[1:]
+        raw_read_id = raw_read_id.split(' ')[0]  # Remove any metadata after space
+        # Start with the full read ID, progressively remove characters until minreadlength
+        match_found = False
+        for length in range(len(raw_read_id), minreadlength - 1, -1):  # Start full, reduce to minreadlength
+            trimmed_read_id = raw_read_id[:length]
+            if trimmed_read_id in read_ids:
+                # print(f"Matched read ID: {trimmed_read_id}")
+                # Write the full read to the output file (header, sequence, +, quality)
+                outhandle.write(f"{header}\n")
+                outhandle.write(f"{sequence}\n")
+                outhandle.write(f"{plus}\n")
+                outhandle.write(f"{quality}\n")
+                match_found = True
+                break  # Exit the loop once a match is found
 
 def match_files(in_handle, out_handle, read_ids):
     # iterate through the input FASTQ file with seqio.parse line by line
@@ -139,8 +139,10 @@ def match_reads(fastq_files, outprefix, read_ids):
         out2 = f"{outprefix}.R2.removed.fastq"
         with gzip.open(fastq1, "rt") as infq1, open(out1, "wt") as outgz1:
             match_files(infq1, outgz1, read_ids)
+            # match_files_base(infq1, outgz1, read_ids)
         with gzip.open(fastq2, "rt") as infq2, open(out2, "wt") as outgz2:
             match_files(infq2, outgz2, read_ids)
+            # match_files_base(infq2, outgz2, read_ids)
     else:
         fastq1 = fastq_files[0]
         out1 = f"{outprefix}.removed.fastq"
