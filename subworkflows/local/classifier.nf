@@ -63,7 +63,7 @@ workflow CLASSIFIER {
             KRAKEN2_KRAKEN2(
                 ch_reads,
                 ch_db,
-                ch_save_fastq_classified,
+                false,
                 true
             )
 
