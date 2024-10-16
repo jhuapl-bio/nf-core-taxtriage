@@ -77,9 +77,14 @@ def parse_kraken2(k2_file, taxid_list):
         for line in infile:
             columns = line.strip().split()
             taxid_info = columns[-1]
-            read_id = columns[1]  # Assuming second column is the read ID
-            if any(taxid in taxid_info for taxid in taxid_list):
-                read_ids.add(read_id)
+            try:
+                read_id = columns[1]  # Assuming second column is the read ID
+                taxid_info_split = taxid_info.split(' ')
+                taxid_list = set([t.split(":")[0] for t in taxid_info_split])
+                if any(taxid in taxid_info for taxid in taxid_list):
+                    read_ids.add(read_id)
+            except Exception as e:
+                print(f"Error parsing line: {e}")
     return read_ids
 import re
 # Remove using regex everything after the last occurrence of the extension for all removeexts from fastq_file
