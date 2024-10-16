@@ -18,16 +18,18 @@ process EXTRACT_TOP_SEQS {
     tag "$meta.id"
     label 'process_medium'
 
-    conda (params.enable_conda ? "conda-forge::python=3.8.3" : null)
+    conda (params.enable_conda ? "conda-forge::python=3.8.3 conda-forge::pigz=2.6" : null)
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
-        'https://depot.galaxyproject.org/singularity/biopython:1.78' :
-        'biocontainers/biopython:1.75' }"
+        'https://depot.galaxyproject.org/singularity/mulled-v2-ac74a7f02cebcfcc07d8e8d1d750af9c83b4d45a:a0ffedb52808e102887f6ce600d092675bf3528a-0' :
+        'biocontainers/mulled-v2-ac74a7f02cebcfcc07d8e8d1d750af9c83b4d45a:a0ffedb52808e102887f6ce600d092675bf3528a-0' }"
+
 
     input:
     tuple val(meta),  path(taxids), path(k2_report), path(reads)
 
     output:
     tuple val(meta), path("*removed.fastq.gz"), optional: true, emit: reads
+    tuple val(meta), path("*extractedreads.txt"), optional: true, emit: extractedreads
     path "versions.yml"           , emit: versions
 
     when:
@@ -39,17 +41,17 @@ process EXTRACT_TOP_SEQS {
     def args = task.ext.args ?: ""
     def prefix = task.ext.prefix ?: "${meta.id}"
     def outputprefix = "${prefix}.extracted"
-    def compress_reads_command = "gzip -f  *.removed.fastq"
+    def compress_reads_command = "pigz -p ${task.cpus} -f  *.removed.fastq"
 
     """
     extract_seqs.py \\
         -i $taxids \\
         -k $k2_report $args \\
         -r $reads \\
-        -p $prefix
+        -p $prefix \\
+        -o ${prefix}.extractedreads.txt
 
     $compress_reads_command
-
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

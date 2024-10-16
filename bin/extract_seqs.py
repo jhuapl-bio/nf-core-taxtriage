@@ -23,7 +23,6 @@ import argparse
 import sys
 import os
 
-from Bio import SeqIO
 import gzip
 
 def parse_args(argv=None):
@@ -48,12 +47,19 @@ def parse_args(argv=None):
     parser.add_argument(
         "-r",
         "--inreads",
-        metavar="READS",
+        required=False,
+        metavar="INREADS",
         nargs="+",
-        default=[],
-        help="1 or more fastq files to extract reads from",
+        help="read fastq files",
     )
-
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        required=False,
+        metavar="output",
+        help="Output file prefix of all matched top hit reads",
+    )
     parser.add_argument(
         "-p",
         "--prefix",
@@ -143,17 +149,18 @@ def match_reads(fastq_files, outprefix, read_ids):
         out1 = f"{outprefix}.R1.removed.fastq"
         out2 = f"{outprefix}.R2.removed.fastq"
         with gzip.open(fastq1, "rt") as infq1, open(out1, "wt") as outgz1:
-            match_files(infq1, outgz1, read_ids)
-            # match_files_base(infq1, outgz1, read_ids)
+            # match_files(infq1, outgz1, read_ids)
+            match_files_base(infq1, outgz1, read_ids)
         with gzip.open(fastq2, "rt") as infq2, open(out2, "wt") as outgz2:
-            match_files(infq2, outgz2, read_ids)
-            # match_files_base(infq2, outgz2, read_ids)
+            # match_files(infq2, outgz2, read_ids)
+            match_files_base(infq2, outgz2, read_ids)
     else:
         fastq1 = fastq_files[0]
         out1 = f"{outprefix}.removed.fastq"
         with gzip.open(fastq1, "rt") as in_handle, open(out1, "wt") as out_handle:
             # Parse the input FASTQ and filter reads
-            match_files(in_handle, out_handle, read_ids)
+            # match_files(in_handle, out_handle, read_ids)
+            match_files_base(in_handle, out_handle, read_ids)
 
 def main(argv=None):
     args = parse_args(argv)
@@ -166,9 +173,16 @@ def main(argv=None):
 
     # Parse Kraken2 classified reads file and get matching read IDs
     read_ids = parse_kraken2(args.k2, taxid_list)
+    # print read_ids to output
 
-    match_reads(args.inreads, args.prefix, read_ids)
-
+    # print read_ids to output
+    if args.output:
+        with open(args.output, 'w') as f:
+            for read_id in read_ids:
+                f.write(f"{read_id}\n")
+        f.close()
+    if args.inreads and len(args.inreads) > 0:
+        match_reads(args.inreads, args.prefix, read_ids)
 
 
 if __name__ == "__main__":
