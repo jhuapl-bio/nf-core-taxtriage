@@ -36,7 +36,10 @@ process MINIMAP2_ALIGN {
     def input_reads = reads.findAll { it != null }.join(' ')
     def I_value = "${(task.memory.toMega() * 0.85).longValue()}M" // 80% of allocated memory, append GB to end as a string
     def S_value = "${( ( task.memory.toMega() / task.cpus ) * 0.1).longValue()}M" // 20% of allocated memory, append GB to end as a string
-    def bam_output = bam_format ? "-a | samtools view -@ ${task.cpus} -b -h -o ${prefix}.bam" : "-o ${prefix}.paf"
+    // set cpu_view variable to half of the cpus, and round down, minimum of 1
+    def cpu_view = Math.max(1, (task.cpus / 2).round().intValue())
+        
+    def bam_output = bam_format ? "-a | samtools view -@ ${cpu_view} -b -h -o ${prefix}.bam" : "-o ${prefix}.paf"
     def cigar_paf = cigar_paf_format && !bam_format ? "-c" : ''
     def set_cigar_bam = cigar_bam && bam_format ? "-L" : ''
     // if input is illumina then use -ax sr else use -ax map-ont
@@ -44,8 +47,8 @@ process MINIMAP2_ALIGN {
     """
     
     minimap2 \\
-        $args $mapx \\
-        -t $task.cpus -I $I_value \\
+        -N 1 $args $mapx \\
+        -t $cpu_view -I $I_value \\
         $reference \\
         $input_reads \\
         $cigar_paf \\
